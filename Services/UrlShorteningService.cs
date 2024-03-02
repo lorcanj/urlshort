@@ -9,6 +9,8 @@ namespace urlshort.Services
 
         private readonly Random _random = new();
 
+        // not performant as could require multiple goes if the same url is randomly generated
+        // i.e. what should we do about collisions
         public async Task<string> GenerateUniqueCode(ApplicationDbContext dbContext)
         {
             while (true) 
@@ -29,7 +31,6 @@ namespace urlshort.Services
                     return code;
                 }
             }
-
         }
     }
 }

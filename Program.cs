@@ -30,7 +30,7 @@ if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
-
+    // not sure about this and whether applicable with the ef migrations
     app.ApplyMigrations();
 }
 
@@ -61,6 +61,21 @@ app.MapPost("api/shorten", async (
     await dbContext.SaveChangesAsync();
 
     return Results.Ok(shortenedUrl.ShortUrl);
+});
+
+app.MapGet("api/{code}", async (string code, ApplicationDbContext dbContext) =>
+{
+    // this is not performant
+    // want a cache like redis memcache
+    var shortenedUrl = await dbContext.ShortenedUrls
+    .FirstOrDefaultAsync(s => s.Code == code);
+
+    if (shortenedUrl == null)
+    {
+        return Results.NotFound(code);
+    }
+
+    return Results.Redirect(shortenedUrl.LongUrl);
 });
 
 app.UseHttpsRedirection();
