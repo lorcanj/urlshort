@@ -8,9 +8,8 @@ namespace urlshort.Services
         private const string Alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
         private readonly Random _random = new();
-        private readonly ApplicationDbContext _dbContext;
 
-        public async Task<string> GenerateUniqueCode()
+        public async Task<string> GenerateUniqueCode(ApplicationDbContext dbContext)
         {
             while (true) 
             {
@@ -25,7 +24,7 @@ namespace urlshort.Services
 
                 var code = new string(codeChars);
 
-                if (!await _dbContext.ShortenedUrls.AnyAsync(s => s.Code == code))
+                if (!await dbContext.ShortenedUrls.AnyAsync(s => s.Code == code))
                 {
                     return code;
                 }

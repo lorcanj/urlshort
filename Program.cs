@@ -14,10 +14,14 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-builder.Services.AddDbContext<ApplicationDbContext>(o =>
-    o.UseSqlServer(builder.Configuration.GetConnectionString("Database")));
-
 builder.Services.AddScoped<UrlShorteningService>();
+
+var connStr = builder.Configuration.GetConnectionString(name: "DefaultConnection");
+
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+    options.UseSqlite(connStr));
+
+//builder.Services.AddScoped<UrlShorteningService>();
 
 var app = builder.Build();
 
@@ -36,12 +40,12 @@ app.MapPost("api/shorten", async (
     ApplicationDbContext dbContext,
     HttpContext httpContext) =>
 {
-    if (Uri.TryCreate(request.Url, UriKind.Absolute, out _))
+    if (!Uri.TryCreate(request.Url, UriKind.Absolute, out _))
     {
         return Results.BadRequest("The specified URL is invalid.");
     }
 
-    var code = await urlShorteningService.GenerateUniqueCode();
+    var code = await urlShorteningService.GenerateUniqueCode(dbContext);
 
     var shortenedUrl = new ShortenedUrl
     {
