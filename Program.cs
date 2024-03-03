@@ -16,6 +16,8 @@ builder.Services.AddSwaggerGen();
 
 builder.Services.AddScoped<UrlShorteningService>();
 
+builder.Services.AddScoped<CacheService>();
+
 var connStr = builder.Configuration.GetConnectionString(name: "DefaultConnection");
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
@@ -28,10 +30,6 @@ builder.Services.AddStackExchangeRedisCache(redisOptions =>
 
     redisOptions.Configuration = connection;
 });
-
-builder.Services.AddScoped<ICacheService, CacheService>();
-
-//builder.Services.AddScoped<UrlShorteningService>();
 
 var app = builder.Build();
 
@@ -52,15 +50,14 @@ app.MapPost("api/shorten", async (
     CacheService cacheService) =>
 {
     //var cacheData = httpContext.RequestServices.GetRequiredService<CacheService>();
-    var cacheData = cacheService.GetData<string>(request.Url);
+    var cacheData = cacheService.GetData<ShortenedUrl>(request.Url);
 
-    if (cacheData != null) return Results.Ok(cacheData);
+    // here cacheData should be the ShortUrl
+    if (cacheData != null) return Results.Ok(cacheData.ShortUrl);
 
     if (!Uri.TryCreate(request.Url, UriKind.Absolute, out _))
-    {
         return Results.BadRequest("The specified URL is invalid.");
-    }
-
+    
     var code = await urlShorteningService.GenerateUniqueCode(dbContext);
 
     var shortenedUrl = new ShortenedUrl
@@ -77,8 +74,7 @@ app.MapPost("api/shorten", async (
     await dbContext.SaveChangesAsync();
 
     // added 99 years as currently just a complication
-    // add
-    cacheService.SetData<string>(request.Url, shortenedUrl.ShortUrl, DateTime.Now.AddYears(99));
+    cacheService.SetData<ShortenedUrl>(request.Url, shortenedUrl, DateTime.Now.AddYears(99));
 
     return Results.Ok(shortenedUrl.ShortUrl);
 });
