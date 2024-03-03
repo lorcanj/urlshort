@@ -21,6 +21,16 @@ var connStr = builder.Configuration.GetConnectionString(name: "DefaultConnection
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlite(connStr));
 
+builder.Services.AddStackExchangeRedisCache(redisOptions =>
+{
+    string connection = builder.Configuration
+        .GetConnectionString("Redis");
+
+    redisOptions.Configuration = connection;
+});
+
+builder.Services.AddScoped<ICacheService, CacheService>();
+
 //builder.Services.AddScoped<UrlShorteningService>();
 
 var app = builder.Build();
@@ -38,8 +48,14 @@ app.MapPost("api/shorten", async (
     ShortenUrlRequest request,
     UrlShorteningService urlShorteningService,
     ApplicationDbContext dbContext,
-    HttpContext httpContext) =>
+    HttpContext httpContext,
+    CacheService cacheService) =>
 {
+    //var cacheData = httpContext.RequestServices.GetRequiredService<CacheService>();
+    var cacheData = cacheService.GetData<string>(request.Url);
+
+    if (cacheData != null) return Results.Ok(cacheData);
+
     if (!Uri.TryCreate(request.Url, UriKind.Absolute, out _))
     {
         return Results.BadRequest("The specified URL is invalid.");
@@ -60,13 +76,15 @@ app.MapPost("api/shorten", async (
 
     await dbContext.SaveChangesAsync();
 
+    // added 99 years as currently just a complication
+    // add
+    cacheService.SetData<string>(request.Url, shortenedUrl.ShortUrl, DateTime.Now.AddYears(99));
+
     return Results.Ok(shortenedUrl.ShortUrl);
 });
 
 app.MapGet("api/{code}", async (string code, ApplicationDbContext dbContext) =>
 {
-    // this is not performant
-    // want a cache like redis memcache
     var shortenedUrl = await dbContext.ShortenedUrls
     .FirstOrDefaultAsync(s => s.Code == code);
 

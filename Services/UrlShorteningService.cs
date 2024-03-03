@@ -11,6 +11,7 @@ namespace urlshort.Services
 
         // not performant as could require multiple goes if the same url is randomly generated
         // i.e. what should we do about collisions
+        // so in this we want to add the codes to the cache?
         public async Task<string> GenerateUniqueCode(ApplicationDbContext dbContext)
         {
             while (true) 
