@@ -1,4 +1,6 @@
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using System.Threading.RateLimiting;
 using urlshort;
 using urlshort.Entities;
 using urlshort.Extensions;
@@ -13,6 +15,36 @@ var builder = WebApplication.CreateBuilder(args);
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    options.AddFixedWindowLimiter("FixedWindowPolicy", opt =>
+    {
+        opt.Window = TimeSpan.FromSeconds(5);
+        opt.PermitLimit = 5;
+        opt.QueueLimit = 10;
+        opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+    });
+
+    options.AddSlidingWindowLimiter("SlidingWindowPolicy", opt =>
+    {
+        opt.Window = TimeSpan.FromSeconds(15);
+        opt.SegmentsPerWindow = 3;
+        opt.PermitLimit = 15;
+    });
+
+    options.AddTokenBucketLimiter("TokenBucketPolicy", opt =>
+    {
+        opt.TokenLimit = 4;
+        opt.QueueLimit = 2;
+        opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        opt.ReplenishmentPeriod = TimeSpan.FromSeconds(10);
+        opt.TokensPerPeriod = 4;
+        opt.AutoReplenishment = true;
+    });
+});
 
 builder.Services.AddScoped<UrlShorteningService>();
 
@@ -77,7 +109,7 @@ app.MapPost("api/shorten", async (
     cacheService.SetData<ShortenedUrl>(request.Url, shortenedUrl, DateTime.Now.AddYears(99));
 
     return Results.Ok(shortenedUrl.ShortUrl);
-});
+}).RequireRateLimiting("FixedWindowPolicy");
 
 app.MapGet("api/{code}", async (string code, ApplicationDbContext dbContext) =>
 {
@@ -91,6 +123,8 @@ app.MapGet("api/{code}", async (string code, ApplicationDbContext dbContext) =>
 
     return Results.Redirect(shortenedUrl.LongUrl);
 });
+
+app.UseRateLimiter();
 
 app.UseHttpsRedirection();
 
